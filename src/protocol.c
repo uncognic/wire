@@ -36,6 +36,21 @@ void send_msg(Client *c, const char *fmt, ...)
     }
 }
 
+void send_motd(Client *c)
+{
+    FILE *f = fopen(".wire/motd", "r");
+    if (!f)
+    {
+        return;
+    }
+    char line[MAX_LINE];
+    while (fgets(line, sizeof(line), f))
+    {
+        send_msg(c, "%s", line);
+    }
+    fclose(f);
+}
+
 void broadcast_room(Server *s, Room *r, Client *sender, const char *msg)
 {
     char buf[MAX_LINE];
@@ -96,6 +111,7 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         strncpy(c->nick, line, MAX_NICK - 1);
         send_msg(c, "ok, nick set to %s\r\n", c->nick);
+        send_motd(c);
         return;
     }
 
@@ -141,9 +157,13 @@ void handle_line(Server *s, Client *c, const char *line)
             room_ban(r, args[1]);
             send_msg(c, "banned %s\r\n", args[1]);
         }
+        else if (strcmp(args[0], "motd") == 0)
+        {
+            send_motd(c);
+        }
         else if (strcmp(args[0], "help") == 0)
         {
-            send_msg(c, "commands: /join, /ban, /help\r\n");
+            send_msg(c, "commands: /join, /ban, /motd, /help\r\n");
         }
         else
         {

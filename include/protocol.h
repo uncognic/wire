@@ -21,6 +21,9 @@
 /* dispatch one complete line from a client */
 void handle_line(Server *s, Client *c, const char *line);
 
+/* send the MOTD file to a client */
+void send_motd(Client *c);
+
 /* send a formatted message to a single client */
 void send_msg(Client *c, const char *fmt, ...);
 
