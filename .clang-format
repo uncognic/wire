@@ -18,7 +18,7 @@ DerivePointerAlignment: true
 
 SortIncludes: true
 
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 SpaceBeforeParens: ControlStatements
