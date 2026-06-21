@@ -31,7 +31,7 @@ void send_msg(Client *c, const char *fmt, ...)
 
     if (n > 0)
     {
-        size_t len = n < (int) sizeof(buf) ? (size_t) n : sizeof(buf) - 1;
+        size_t len = n < (int)sizeof(buf) ? (size_t)n : sizeof(buf) - 1;
         write(c->fd, buf, len);
     }
 }
@@ -84,10 +84,18 @@ static int tokenise(const char *line, char args[MAX_ARGS][MAX_LINE])
 void handle_line(Server *s, Client *c, const char *line)
 {
     /* first message must be the nick */
-    if (!c->nick[0])
+    if (c->nick[0] == 0)
     {
+        for (int i = 0; i < s->nclients; i++)
+        {
+            if (&s->clients[i] != c && strcmp(s->clients[i].nick, line) == 0)
+            {
+                send_msg(c, "nick taken\r\n");
+                return;
+            }
+        }
         strncpy(c->nick, line, MAX_NICK - 1);
-        send_msg(c, "nick set to %s\r\n", c->nick);
+        send_msg(c, "ok, nick set to %s\r\n", c->nick);
         return;
     }
 
