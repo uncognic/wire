@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /* create a directory, silently ignore if it already exists */
 static void ensure_dir(const char *path)
@@ -214,17 +215,22 @@ void room_unban(Room *r, const char *nick)
     rename(tmp, r->bans);
 }
 
-/* append a line to the room's log file */
+/* append a timestamped line to the room's log file */
 void room_log(Room *r, const char *line)
 {
     char buf[512];
     snprintf(buf, sizeof(buf), "%s/log", r->path);
     FILE *f = fopen(buf, "a");
-    if (f)
-    {
-        fprintf(f, "%s", line);
-        fclose(f);
-    }
+    if (!f)
+        return;
+
+    time_t now = time(NULL);
+    struct tm *tm = localtime(&now);
+    char ts[64];
+    strftime(ts, sizeof(ts), "[%Y-%m-%d %H:%M:%S] ", tm);
+
+    fprintf(f, "%s%s", ts, line);
+    fclose(f);
 }
 
 void room_set_topic(Room *r, const char *text)
