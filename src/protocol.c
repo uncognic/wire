@@ -15,6 +15,7 @@
 
 #include "protocol.h"
 #include "room.h"
+#include "server.h"
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -96,6 +97,21 @@ static int tokenise(const char *line, char args[MAX_ARGS][MAX_LINE])
     return argc;
 }
 
+/* find a connected client by nick in the same room as c */
+static Client *find_client(Server *s, Client *c, const char *nick)
+{
+    for (int i = 0; i < s->nclients; i++)
+    {
+        Client *t = &s->clients[i];
+        if (t != c && strcmp(t->nick, nick) == 0
+            && strcmp(t->room, c->room) == 0)
+        {
+            return t;
+        }
+    }
+    return NULL;
+}
+
 void handle_line(Server *s, Client *c, const char *line)
 {
     /* first message must be the nick */
@@ -157,13 +173,96 @@ void handle_line(Server *s, Client *c, const char *line)
             room_ban(r, args[1]);
             send_msg(c, "banned %s\r\n", args[1]);
         }
+        else if (strcmp(args[0], "unban") == 0)
+        {
+            if (argc < 2)
+            {
+                send_msg(c, "usage: /unban <nick>\r\n");
+                return;
+            }
+            Room *r = room_find(s, c->room);
+            if (!r || !c->is_op)
+            {
+                send_msg(c, "not op in this room\r\n");
+                return;
+            }
+            room_unban(r, args[1]);
+            send_msg(c, "unbanned %s\r\n", args[1]);
+        }
+        else if (strcmp(args[0], "kick") == 0)
+        {
+            if (argc < 2)
+            {
+                send_msg(c, "usage: /kick <nick>\r\n");
+                return;
+            }
+            Room *r = room_find(s, c->room);
+            if (!r || !c->is_op)
+            {
+                send_msg(c, "not op in this room\r\n");
+                return;
+            }
+            Client *target = find_client(s, c, args[1]);
+            if (!target)
+            {
+                send_msg(c, "not in this room\r\n");
+                return;
+            }
+            target->room[0] = 0;
+            target->is_op = 0;
+            send_msg(target, "you were kicked from %s\r\n", r->name);
+            send_msg(c, "kicked %s\r\n", args[1]);
+        }
+        else if (strcmp(args[0], "op") == 0)
+        {
+            if (argc < 2)
+            {
+                send_msg(c, "usage: /op <nick>\r\n");
+                return;
+            }
+            Room *r = room_find(s, c->room);
+            if (!r || !c->is_op)
+            {
+                send_msg(c, "not op in this room\r\n");
+                return;
+            }
+            room_add_op(r, args[1]);
+            Client *target = find_client(s, c, args[1]);
+            if (target)
+                target->is_op = 1;
+            send_msg(c, "opped %s\r\n", args[1]);
+        }
+        else if (strcmp(args[0], "deop") == 0)
+        {
+            if (argc < 2)
+            {
+                send_msg(c, "usage: /deop <nick>\r\n");
+                return;
+            }
+            Room *r = room_find(s, c->room);
+            if (!r || !c->is_op)
+            {
+                send_msg(c, "not op in this room\r\n");
+                return;
+            }
+            room_remove_op(r, args[1]);
+            Client *target = find_client(s, c, args[1]);
+            if (target)
+                target->is_op = 0;
+            send_msg(c, "deopped %s\r\n", args[1]);
+        }
+        else if (strcmp(args[0], "quit") == 0)
+        {
+            server_drop(s, c);
+            return;
+        }
         else if (strcmp(args[0], "motd") == 0)
         {
             send_motd(c);
         }
         else if (strcmp(args[0], "help") == 0)
         {
-            send_msg(c, "commands: /join, /ban, /motd, /help\r\n");
+            send_msg(c, "commands: /join, /ban, /unban, /kick, /op, /deop, /quit, /motd, /help\r\n");
         }
         else
         {

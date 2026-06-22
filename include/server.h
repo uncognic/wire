@@ -26,3 +26,6 @@ void server_run(Server *s);
 
 /* cleanly close everything */
 void server_shutdown(Server *s);
+
+/* disconnect a client */
+void server_drop(Server *s, Client *c);

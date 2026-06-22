@@ -75,6 +75,15 @@ static void drop_client(Server *s, int i)
     s->clients[i] = s->clients[--s->nclients];
 }
 
+void server_drop(Server *s, Client *c)
+{
+    int idx = (int)(c - s->clients);
+    if (idx >= 0 && idx < s->nclients)
+    {
+        drop_client(s, idx);
+    }
+}
+
 int server_init(Server *s)
 {
     signal(SIGINT, handle_sigint);
