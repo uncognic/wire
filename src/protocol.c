@@ -286,6 +286,34 @@ void handle_line(Server *s, Client *c, const char *line)
             }
             send_msg(c, "deopped %s\r\n", args[1]);
         }
+        else if (strcmp(args[0], "rooms") == 0)
+        {
+            if (s->nrooms == 0)
+            {
+                send_msg(c, "no rooms\r\n");
+                return;
+            }
+            for (int i = 0; i < s->nrooms; i++)
+            {
+                send_msg(c, "%s\r\n", s->rooms[i].name);
+            }
+        }
+        else if (strcmp(args[0], "who") == 0)
+        {
+            int count = 0;
+            for (int i = 0; i < s->nclients; i++)
+            {
+                if (strcmp(s->clients[i].room, c->room) == 0)
+                {
+                    send_msg(c, "%s%s\r\n", s->clients[i].nick, s->clients[i].is_op ? " (op)" : "");
+                    count++;
+                }
+            }
+            if (count == 0)
+            {
+                send_msg(c, "join a room first\r\n");
+            }
+        }
         else if (strcmp(args[0], "quit") == 0)
         {
             server_drop(s, c);
@@ -297,8 +325,8 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         else if (strcmp(args[0], "help") == 0)
         {
-            send_msg(c, "commands: /join, /ban, /unban, /kick, /op, /deop, /topic, /quit, /motd, "
-                        "/help\r\n");
+            send_msg(c, "commands: /join, /ban, /unban, /kick, /op, /deop, /topic, /rooms, "
+                        "/who, /quit, /motd, /help\r\n");
         }
         else
         {
