@@ -19,7 +19,7 @@
 #include "wire.h"
 
 /* initialise the listen socket and signal handlers */
-int server_init(Server *s);
+int server_init(Server *s, unsigned short port);
 
 /* enter loop */
 void server_run(Server *s);

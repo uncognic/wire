@@ -34,7 +34,7 @@ static void handle_sigint(int sig)
     running = 0;
 }
 
-static int make_socket(void)
+static int make_socket(unsigned short port)
 {
     int fd = socket(AF_INET6, SOCK_STREAM, 0);
     if (fd < 0)
@@ -51,7 +51,7 @@ static int make_socket(void)
 
     struct sockaddr_in6 addr = {0};
     addr.sin6_family = AF_INET6;
-    addr.sin6_port = htons(PORT_DEFAULT);
+    addr.sin6_port = htons(port);
     addr.sin6_addr = in6addr_any;
 
     if (bind(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
@@ -85,7 +85,7 @@ void server_drop(Server *s, Client *c)
     }
 }
 
-int server_init(Server *s)
+int server_init(Server *s, unsigned short port)
 {
     signal(SIGINT, handle_sigint);
     signal(SIGPIPE, SIG_IGN);
@@ -93,7 +93,7 @@ int server_init(Server *s)
     const char *home = getenv("WIRE_HOME");
     strncpy(s->data_dir, home ? home : ".wire", sizeof(s->data_dir) - 1);
 
-    s->listen_fd = make_socket();
+    s->listen_fd = make_socket(port);
     if (s->listen_fd < 0)
     {
         return -1;

@@ -13,22 +13,49 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _POSIX_C_SOURCE 200809L
 
 #include "server.h"
 #include "wire.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-int main(void)
+int main(int argc, char** argv)
 {
+    unsigned short port = PORT_DEFAULT;
+    int opt;
+
+    while ((opt = getopt(argc, argv, "p:")) != -1)
+    {
+        switch (opt)
+        {
+            case 'p':
+            {
+                long n = strtol(optarg, NULL, 10);
+                if (n <= 0 || n > 65535)
+                {
+                    fprintf(stderr, "wire: invalid port '%s'\n", optarg);
+                    return 1;
+                }
+                port = (unsigned short)n;
+                break;
+            }
+            default:
+                fprintf(stderr, "usage: %s [-p port]\n", argv[0]);
+                return 1;
+        }
+    }
+
     Server s = {0};
 
-    if (server_init(&s) < 0)
+    if (server_init(&s, port) < 0)
     {
         fprintf(stderr, "wire: failed to start server\n");
         return 1;
     }
 
-    printf("wire: listening on port %d\n", PORT_DEFAULT);
+    printf("wire: listening on port %d\n", port);
     server_run(&s);
     return 0;
 }
