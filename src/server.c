@@ -21,6 +21,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -88,6 +89,9 @@ int server_init(Server *s)
 {
     signal(SIGINT, handle_sigint);
     signal(SIGPIPE, SIG_IGN);
+
+    const char *home = getenv("WIRE_HOME");
+    strncpy(s->data_dir, home ? home : ".wire", sizeof(s->data_dir) - 1);
 
     s->listen_fd = make_socket();
     if (s->listen_fd < 0)

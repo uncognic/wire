@@ -37,9 +37,11 @@ void send_msg(Client *c, const char *fmt, ...)
     }
 }
 
-void send_motd(Client *c)
+void send_motd(Server *s, Client *c)
 {
-    FILE *f = fopen(".wire/motd", "r");
+    char path[512];
+    snprintf(path, sizeof(path), "%s/motd", s->data_dir);
+    FILE *f = fopen(path, "r");
     if (!f)
     {
         return;
@@ -126,7 +128,7 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         strncpy(c->nick, line, MAX_NICK - 1);
         send_msg(c, "ok, nick set to %s\r\n", c->nick);
-        send_motd(c);
+        send_motd(s, c);
         return;
     }
 
@@ -321,7 +323,7 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         else if (strcmp(args[0], "motd") == 0)
         {
-            send_motd(c);
+            send_motd(s, c);
         }
         else if (strcmp(args[0], "help") == 0)
         {

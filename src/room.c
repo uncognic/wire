@@ -58,12 +58,12 @@ Room *room_create(Server *s, const char *name, const char *creator)
 
     /* create state files */
     char buf[512];
-    snprintf(buf, sizeof(buf), ".wire/rooms/%s", name);
+    snprintf(buf, sizeof(buf), "%s/rooms/%s", s->data_dir, name);
     r->path = strdup(buf);
 
     ensure_dir(buf);
 
-    snprintf(buf, sizeof(buf), ".wire/rooms/%s/ops", name);
+    snprintf(buf, sizeof(buf), "%s/rooms/%s/ops", s->data_dir, name);
     r->ops = strdup(buf);
     FILE *f = fopen(r->ops, "a");
     if (f)
@@ -72,9 +72,10 @@ Room *room_create(Server *s, const char *name, const char *creator)
         fclose(f);
     }
 
-    snprintf(buf, sizeof(buf), ".wire/rooms/%s/bans", name);
+    snprintf(buf, sizeof(buf), "%s/rooms/%s/bans", s->data_dir, name);
     r->bans = strdup(buf);
-    ensure_dir(".wire/rooms");
+    snprintf(buf, sizeof(buf), "%s/rooms", s->data_dir);
+    ensure_dir(buf);
 
     r->topic = load_topic(r->path);
 

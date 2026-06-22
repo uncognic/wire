@@ -47,4 +47,5 @@ typedef struct
     Room *rooms;                 /* dynamic array of rooms */
     int nrooms;                  /* number of rooms */
     int listen_fd;               /* server socket */
+    char data_dir[256];          /* data directory path */
 } Server;

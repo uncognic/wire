@@ -22,7 +22,7 @@
 void handle_line(Server *s, Client *c, const char *line);
 
 /* send the MOTD file to a client */
-void send_motd(Client *c);
+void send_motd(Server *s, Client *c);
 
 /* send a formatted message to a single client */
 void send_msg(Client *c, const char *fmt, ...);
