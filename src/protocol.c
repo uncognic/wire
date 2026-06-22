@@ -103,8 +103,7 @@ static Client *find_client(Server *s, Client *c, const char *nick)
     for (int i = 0; i < s->nclients; i++)
     {
         Client *t = &s->clients[i];
-        if (t != c && strcmp(t->nick, nick) == 0
-            && strcmp(t->room, c->room) == 0)
+        if (t != c && strcmp(t->nick, nick) == 0 && strcmp(t->room, c->room) == 0)
         {
             return t;
         }
@@ -156,6 +155,10 @@ void handle_line(Server *s, Client *c, const char *line)
             }
             strncpy(c->room, r->name, MAX_ROOM - 1);
             send_msg(c, "joined %s\r\n", r->name);
+            if (r->topic)
+            {
+                send_msg(c, "topic: %s\r\n", r->topic);
+            }
         }
         else if (strcmp(args[0], "ban") == 0)
         {
@@ -188,6 +191,34 @@ void handle_line(Server *s, Client *c, const char *line)
             }
             room_unban(r, args[1]);
             send_msg(c, "unbanned %s\r\n", args[1]);
+        }
+        else if (strcmp(args[0], "topic") == 0)
+        {
+            Room *r = room_find(s, c->room);
+            if (!r)
+            {
+                send_msg(c, "join a room first\r\n");
+                return;
+            }
+            if (argc == 1)
+            {
+                if (r->topic)
+                {
+                    send_msg(c, "topic: %s\r\n", r->topic);
+                }
+                else
+                {
+                    send_msg(c, "no topic set\r\n");
+                }
+                return;
+            }
+            if (!c->is_op)
+            {
+                send_msg(c, "not op in this room\r\n");
+                return;
+            }
+            room_set_topic(r, args[1]);
+            send_msg(c, "topic set\r\n");
         }
         else if (strcmp(args[0], "kick") == 0)
         {
@@ -229,7 +260,9 @@ void handle_line(Server *s, Client *c, const char *line)
             room_add_op(r, args[1]);
             Client *target = find_client(s, c, args[1]);
             if (target)
+            {
                 target->is_op = 1;
+            }
             send_msg(c, "opped %s\r\n", args[1]);
         }
         else if (strcmp(args[0], "deop") == 0)
@@ -248,7 +281,9 @@ void handle_line(Server *s, Client *c, const char *line)
             room_remove_op(r, args[1]);
             Client *target = find_client(s, c, args[1]);
             if (target)
+            {
                 target->is_op = 0;
+            }
             send_msg(c, "deopped %s\r\n", args[1]);
         }
         else if (strcmp(args[0], "quit") == 0)
@@ -262,7 +297,8 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         else if (strcmp(args[0], "help") == 0)
         {
-            send_msg(c, "commands: /join, /ban, /unban, /kick, /op, /deop, /quit, /motd, /help\r\n");
+            send_msg(c, "commands: /join, /ban, /unban, /kick, /op, /deop, /topic, /quit, /motd, "
+                        "/help\r\n");
         }
         else
         {

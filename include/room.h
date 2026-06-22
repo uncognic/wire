@@ -24,6 +24,7 @@ struct Room
     char name[MAX_ROOM];
     char *ops;   /* path to ops file */
     char *bans;  /* path to bans file */
+    char *topic; /* current topic, NULL if none */
     char *path;  /* path to room directory */
 };
 
@@ -34,4 +35,5 @@ void room_add_op(Room *r, const char *nick);
 void room_remove_op(Room *r, const char *nick);
 void room_ban(Room *r, const char *nick);
 void room_unban(Room *r, const char *nick);
+void room_set_topic(Room *r, const char *text);
 void room_log(Room *r, const char *line);

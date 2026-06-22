@@ -27,6 +27,27 @@ static void ensure_dir(const char *path)
     system(buf);
 }
 
+/* load topic from disk, returns allocated string or NULL */
+static char *load_topic(const char *path)
+{
+    char tpath[512];
+    snprintf(tpath, sizeof(tpath), "%s/topic", path);
+    FILE *f = fopen(tpath, "r");
+    if (!f)
+        return NULL;
+
+    char line[MAX_LINE];
+    if (fgets(line, sizeof(line), f))
+    {
+        char *nl = strchr(line, '\n');
+        if (nl) *nl = 0;
+        fclose(f);
+        return strdup(line);
+    }
+    fclose(f);
+    return NULL;
+}
+
 Room *room_create(Server *s, const char *name, const char *creator)
 {
     /* grow the rooms array */
@@ -54,6 +75,8 @@ Room *room_create(Server *s, const char *name, const char *creator)
     snprintf(buf, sizeof(buf), ".wire/rooms/%s/bans", name);
     r->bans = strdup(buf);
     ensure_dir(".wire/rooms");
+
+    r->topic = load_topic(r->path);
 
     return r;
 }
@@ -201,4 +224,19 @@ void room_log(Room *r, const char *line)
         fprintf(f, "%s", line);
         fclose(f);
     }
+}
+
+void room_set_topic(Room *r, const char *text)
+{
+    char tpath[512];
+    snprintf(tpath, sizeof(tpath), "%s/topic", r->path);
+    FILE *f = fopen(tpath, "w");
+    if (f)
+    {
+        fprintf(f, "%s\n", text);
+        fclose(f);
+    }
+
+    free(r->topic);
+    r->topic = strdup(text);
 }
