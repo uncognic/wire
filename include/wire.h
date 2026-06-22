@@ -36,6 +36,8 @@ typedef struct
     char nick[MAX_NICK]; /* nickname, empty = not set yet */
     char room[MAX_ROOM]; /* current room, empty = nowhere */
     int is_op;           /* operator in current room */
+    char buf[MAX_LINE];  /* partial line buffer */
+    int buflen;          /* bytes used in buf */
 } Client;
 
 typedef struct

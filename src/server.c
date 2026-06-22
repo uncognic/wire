@@ -148,30 +148,69 @@ void server_run(Server *s)
         /* client I/O */
         for (int i = 0; i < s->nclients; i++)
         {
+            Client *c = &s->clients[i];
+
             if (fds[i + 1].revents & (POLLIN | POLLHUP | POLLERR))
             {
-                char buf[MAX_LINE];
-                ssize_t n = read(s->clients[i].fd, buf, sizeof(buf) - 1);
+                int space = (int)sizeof(c->buf) - c->buflen - 1;
+                if (space <= 0)
+                {
+                    drop_client(s, i--);
+                    continue;
+                }
+
+                ssize_t n = read(c->fd, c->buf + c->buflen, space);
                 if (n <= 0)
                 {
                     drop_client(s, i--);
+                    continue;
                 }
-                else
+
+                c->buflen += (int)n;
+                c->buf[c->buflen] = 0;
+
+                /* process every complete line in the buffer */
+                int consumed = 0;
+                int got_line = 0;
+                for (int j = 0; j < c->buflen; j++)
                 {
-                    buf[n] = 0;
-                    char *nl;
-                    if ((nl = strchr(buf, '\n')))
+                    if (c->buf[j] == '\n')
                     {
-                        *nl = 0;
+                        c->buf[j] = 0;
+                        if (j > 0 && c->buf[j - 1] == '\r')
+                        {
+                            c->buf[j - 1] = 0;
+                        }
+
+                        got_line = 1;
+                        if (c->buf[consumed])
+                        {
+                            handle_line(s, c, c->buf + consumed);
+                        }
+
+                        if (c->fd < 0)
+                        {
+                            i = -1;
+                            break;
+                        }
+
+                        consumed = j + 1;
                     }
-                    if ((nl = strchr(buf, '\r')))
-                    {
-                        *nl = 0;
-                    }
-                    if (buf[0])
-                    {
-                        handle_line(s, &s->clients[i], buf);
-                    }
+                }
+
+                if (i < 0)
+                {
+                    break;
+                }
+
+                if (got_line && consumed < c->buflen)
+                {
+                    c->buflen -= consumed;
+                    memmove(c->buf, c->buf + consumed, c->buflen);
+                }
+                else if (got_line)
+                {
+                    c->buflen = 0;
                 }
             }
         }
