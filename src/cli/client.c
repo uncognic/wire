@@ -32,7 +32,7 @@
 #define MAX_LINE 4096
 #define RBUF_SIZE 4096
 #define PORT_DEFAULT 7070
-#define SCROLL_ROWS_OFFSET 2
+#define SCROLL_ROWS_OFFSET 3
 
 /* ANSI escape sequences */
 #define ANSI_HOME_CLR "\033[H\033[J"
@@ -56,6 +56,10 @@ static int input_len;
 static int rows = 24;
 static int cols = 80;
 
+static char current_room[256] = "";
+static char current_nick[64] = "";
+static int is_op;
+
 /* colors */
 #define C_RESET "\033[0m"
 #define C_GREEN "\033[32m"
@@ -63,6 +67,7 @@ static int cols = 80;
 #define C_RED "\033[31m"
 #define C_CYAN "\033[36m"
 #define C_GRAY "\033[90m"
+#define C_REV "\033[7m"
 
 static void die(const char *msg)
 {
@@ -139,6 +144,28 @@ static void redraw(void)
         write(STDOUT_FILENO, "\n", 1);
     }
 
+    /* status bar */
+    write(STDOUT_FILENO, "\r", 1);
+    write(STDOUT_FILENO, ANSI_CLR_EOL, sizeof(ANSI_CLR_EOL) - 1);
+    char status[512];
+    if (current_nick[0])
+    {
+        snprintf(status, sizeof(status), "%s @ %s%s", current_nick,
+                 current_room[0] ? current_room : "(no room)", is_op ? " [op]" : "");
+    }
+    else
+    {
+        snprintf(status, sizeof(status), "not connected");
+    }
+    if ((int)strlen(status) > cols)
+    {
+        status[cols] = 0;
+    }
+    write(STDOUT_FILENO, C_REV, strlen(C_REV));
+    write(STDOUT_FILENO, status, strlen(status));
+    write(STDOUT_FILENO, C_RESET, strlen(C_RESET));
+    write(STDOUT_FILENO, "\n", 1);
+
     /* prompt line */
     write(STDOUT_FILENO, "\r", 1);
     write(STDOUT_FILENO, ANSI_CLR_EOL, sizeof(ANSI_CLR_EOL) - 1);
@@ -212,6 +239,35 @@ static void do_connect(void)
 
 static void handle_server(const char *line)
 {
+    if (strncmp(line, "ok, nick set to ", 16) == 0)
+    {
+        strncpy(current_nick, line + 16, sizeof(current_nick) - 1);
+    }
+    else if (strncmp(line, "joined ", 7) == 0)
+    {
+        strncpy(current_room, line + 7, sizeof(current_room) - 1);
+        is_op = 0;
+    }
+    else if (strcmp(line, "you were kicked") == 0)
+    {
+        current_room[0] = 0;
+        is_op = 0;
+    }
+    else if (strncmp(line, "opped ", 6) == 0)
+    {
+        if (strcmp(line + 6, current_nick) == 0)
+        {
+            is_op = 1;
+        }
+    }
+    else if (strncmp(line, "deopped ", 8) == 0)
+    {
+        if (strcmp(line + 8, current_nick) == 0)
+        {
+            is_op = 0;
+        }
+    }
+
     /* color messages depending on if they are system messages or not */
     if (line[0] == '<')
     {
