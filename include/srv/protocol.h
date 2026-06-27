@@ -19,7 +19,7 @@
 #include "wire.h"
 
 /* dispatch one complete line from a client */
-void handle_line(Server *s, Client *c, const char *line);
+int handle_line(Server *s, Client *c, const char *line);
 
 /* send the MOTD file to a client */
 void send_motd(Server *s, Client *c);

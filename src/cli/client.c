@@ -248,7 +248,7 @@ static void handle_server(const char *line)
         strncpy(current_room, line + 7, sizeof(current_room) - 1);
         is_op = 0;
     }
-    else if (strcmp(line, "you were kicked") == 0)
+    else if (strncmp(line, "you were kicked", 15) == 0)
     {
         current_room[0] = 0;
         is_op = 0;
@@ -422,7 +422,20 @@ int main(int argc, char **argv)
     }
 
     host = argv[1];
-    port = argc > 2 ? atoi(argv[2]) : PORT_DEFAULT;
+    if (argc > 2)
+    {
+        long n = strtol(argv[2], NULL, 10);
+        if (n <= 0 || n > 65535)
+        {
+            fprintf(stderr, "wirec: invalid port '%s'\n", argv[2]);
+            return 1;
+        }
+        port = (int)n;
+    }
+    else
+    {
+        port = PORT_DEFAULT;
+    }
 
     do_connect();
     return poll_loop();

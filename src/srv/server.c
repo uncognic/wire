@@ -15,6 +15,7 @@
 
 #include "server.h"
 #include "protocol.h"
+#include "room.h"
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
@@ -166,6 +167,29 @@ void server_run(Server *s)
                 ssize_t n = read(c->fd, c->buf + c->buflen, space);
                 if (n <= 0)
                 {
+                    if (c->nick[0] && c->room[0])
+                    {
+                        Room *r = room_find(s, c->room);
+                        if (r)
+                        {
+                            char msg[MAX_LINE];
+                            int mlen = snprintf(msg, sizeof(msg),
+                                                "%s has left\r\n", c->nick);
+                            if (mlen > 0)
+                            {
+                                if ((size_t)mlen >= sizeof(msg))
+                                    mlen = sizeof(msg) - 1;
+                                for (int k = 0; k < s->nclients; k++)
+                                {
+                                    if (&s->clients[k] != c &&
+                                        strcmp(s->clients[k].room, c->room) == 0)
+                                    {
+                                        write(s->clients[k].fd, msg, mlen);
+                                    }
+                                }
+                            }
+                        }
+                    }
                     drop_client(s, i--);
                     continue;
                 }
@@ -189,13 +213,11 @@ void server_run(Server *s)
                         got_line = 1;
                         if (c->buf[consumed])
                         {
-                            handle_line(s, c, c->buf + consumed);
-                        }
-
-                        if (c->fd < 0)
-                        {
-                            i = -1;
-                            break;
+                            if (handle_line(s, c, c->buf + consumed))
+                            {
+                                i = -1;
+                                break;
+                            }
                         }
 
                         consumed = j + 1;

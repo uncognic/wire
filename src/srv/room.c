@@ -18,14 +18,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 
-/* create a directory, silently ignore if it already exists */
-static void ensure_dir(const char *path)
+static void mkpath(const char *path, mode_t mode)
 {
-    char buf[512];
-    snprintf(buf, sizeof(buf), "mkdir -p %s 2>/dev/null", path);
-    system(buf);
+    char tmp[512];
+    strncpy(tmp, path, sizeof(tmp) - 1);
+    tmp[sizeof(tmp) - 1] = 0;
+
+    for (char *p = tmp + 1; *p; p++)
+    {
+        if (*p == '/')
+        {
+            *p = 0;
+            mkdir(tmp, mode);
+            *p = '/';
+        }
+    }
+    mkdir(tmp, mode);
 }
 
 /* load topic from disk, returns allocated string or NULL */
@@ -51,18 +62,19 @@ static char *load_topic(const char *path)
 
 Room *room_create(Server *s, const char *name, const char *creator)
 {
-    /* grow the rooms array */
-    s->rooms = realloc(s->rooms, (s->nrooms + 1) * sizeof(Room));
+    Room *tmp = realloc(s->rooms, (s->nrooms + 1) * sizeof(Room));
+    if (!tmp)
+        return NULL;
+    s->rooms = tmp;
     Room *r = &s->rooms[s->nrooms++];
+    memset(r, 0, sizeof(*r));
 
     strncpy(r->name, name, MAX_ROOM - 1);
 
-    /* create state files */
     char buf[512];
     snprintf(buf, sizeof(buf), "%s/rooms/%s", s->data_dir, name);
     r->path = strdup(buf);
-
-    ensure_dir(buf);
+    mkpath(buf, 0755);
 
     snprintf(buf, sizeof(buf), "%s/rooms/%s/ops", s->data_dir, name);
     r->ops = strdup(buf);
@@ -75,8 +87,6 @@ Room *room_create(Server *s, const char *name, const char *creator)
 
     snprintf(buf, sizeof(buf), "%s/rooms/%s/bans", s->data_dir, name);
     r->bans = strdup(buf);
-    snprintf(buf, sizeof(buf), "%s/rooms", s->data_dir);
-    ensure_dir(buf);
 
     r->topic = load_topic(r->path);
 
@@ -111,6 +121,40 @@ int room_is_banned(Room *r, const char *nick)
         {
             *nl = 0;
         }
+        if (strcmp(line, nick) == 0)
+        {
+            fclose(f);
+            return 1;
+        }
+    }
+    fclose(f);
+    return 0;
+}
+
+int valid_name(const char *name)
+{
+    if (!name || !name[0])
+        return 0;
+    for (const char *p = name; *p; p++)
+    {
+        if (!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+              (*p >= '0' && *p <= '9') || *p == '-' || *p == '_'))
+            return 0;
+    }
+    return 1;
+}
+
+int room_is_op(Room *r, const char *nick)
+{
+    FILE *f = fopen(r->ops, "r");
+    if (!f)
+        return 0;
+    char line[128];
+    while (fgets(line, sizeof(line), f))
+    {
+        char *nl = strchr(line, '\n');
+        if (nl)
+            *nl = 0;
         if (strcmp(line, nick) == 0)
         {
             fclose(f);

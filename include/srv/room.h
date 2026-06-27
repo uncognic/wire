@@ -37,3 +37,5 @@ void room_ban(Room *r, const char *nick);
 void room_unban(Room *r, const char *nick);
 void room_set_topic(Room *r, const char *text);
 void room_log(Room *r, const char *line);
+int room_is_op(Room *r, const char *nick);
+int valid_name(const char *name);

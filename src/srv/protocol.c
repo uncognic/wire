@@ -58,8 +58,11 @@ void broadcast_room(Server *s, Room *r, Client *sender, const char *msg)
 {
     char buf[MAX_LINE];
     int n = snprintf(buf, sizeof(buf), "<%s> %s\r\n", sender->nick, msg);
+    if (n < 0)
+        return;
+    if ((size_t)n >= sizeof(buf))
+        n = sizeof(buf) - 1;
 
-    /* send message to each client */
     for (int i = 0; i < s->nclients; i++)
     {
         Client *c = &s->clients[i];
@@ -113,23 +116,28 @@ static Client *find_client(Server *s, Client *c, const char *nick)
     return NULL;
 }
 
-void handle_line(Server *s, Client *c, const char *line)
+int handle_line(Server *s, Client *c, const char *line)
 {
     /* first message must be the nick */
     if (c->nick[0] == 0)
     {
+        if (!valid_name(line))
+        {
+            send_msg(c, "invalid nick (alphanumeric, hyphens, underscores only)\r\n");
+            return 0;
+        }
         for (int i = 0; i < s->nclients; i++)
         {
             if (&s->clients[i] != c && strcmp(s->clients[i].nick, line) == 0)
             {
                 send_msg(c, "nick taken\r\n");
-                return;
+                return 0;
             }
         }
         strncpy(c->nick, line, MAX_NICK - 1);
         send_msg(c, "ok, nick set to %s\r\n", c->nick);
         send_motd(s, c);
-        return;
+        return 0;
     }
 
     /* commands start with / */
@@ -139,7 +147,7 @@ void handle_line(Server *s, Client *c, const char *line)
         int argc = tokenise(line, args);
         if (argc == 0)
         {
-            return;
+            return 0;
         }
 
         if (strcmp(args[0], "join") == 0)
@@ -147,14 +155,29 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /join <room>\r\n");
-                return;
+                return 0;
+            }
+            if (!valid_name(args[1]))
+            {
+                send_msg(c, "invalid room name\r\n");
+                return 0;
             }
             Room *r = room_find(s, args[1]);
             if (!r)
             {
                 r = room_create(s, args[1], c->nick);
-                c->is_op = 1; /* first joiner gets op */
+                if (!r)
+                {
+                    send_msg(c, "failed to create room\r\n");
+                    return 0;
+                }
             }
+            if (room_is_banned(r, c->nick))
+            {
+                send_msg(c, "you are banned from this room\r\n");
+                return 0;
+            }
+            c->is_op = room_is_op(r, c->nick);
             strncpy(c->room, r->name, MAX_ROOM - 1);
             send_msg(c, "joined %s\r\n", r->name);
             if (r->topic)
@@ -167,13 +190,13 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /ban <nick>\r\n");
-                return;
+                return 0;
             }
             Room *r = room_find(s, c->room);
             if (!r || !c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
             room_ban(r, args[1]);
             send_msg(c, "banned %s\r\n", args[1]);
@@ -183,13 +206,13 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /unban <nick>\r\n");
-                return;
+                return 0;
             }
             Room *r = room_find(s, c->room);
             if (!r || !c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
             room_unban(r, args[1]);
             send_msg(c, "unbanned %s\r\n", args[1]);
@@ -200,7 +223,7 @@ void handle_line(Server *s, Client *c, const char *line)
             if (!r)
             {
                 send_msg(c, "join a room first\r\n");
-                return;
+                return 0;
             }
             if (argc == 1)
             {
@@ -212,14 +235,17 @@ void handle_line(Server *s, Client *c, const char *line)
                 {
                     send_msg(c, "no topic set\r\n");
                 }
-                return;
+                return 0;
             }
             if (!c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
-            room_set_topic(r, args[1]);
+            const char *text = line + 6;
+            while (*text == ' ')
+                text++;
+            room_set_topic(r, text);
             send_msg(c, "topic set\r\n");
         }
         else if (strcmp(args[0], "kick") == 0)
@@ -227,19 +253,19 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /kick <nick>\r\n");
-                return;
+                return 0;
             }
             Room *r = room_find(s, c->room);
             if (!r || !c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
             Client *target = find_client(s, c, args[1]);
             if (!target)
             {
                 send_msg(c, "not in this room\r\n");
-                return;
+                return 0;
             }
             target->room[0] = 0;
             target->is_op = 0;
@@ -251,19 +277,20 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /op <nick>\r\n");
-                return;
+                return 0;
             }
             Room *r = room_find(s, c->room);
             if (!r || !c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
             room_add_op(r, args[1]);
             Client *target = find_client(s, c, args[1]);
             if (target)
             {
                 target->is_op = 1;
+                send_msg(target, "opped %s\r\n", args[1]);
             }
             send_msg(c, "opped %s\r\n", args[1]);
         }
@@ -272,19 +299,20 @@ void handle_line(Server *s, Client *c, const char *line)
             if (argc < 2)
             {
                 send_msg(c, "usage: /deop <nick>\r\n");
-                return;
+                return 0;
             }
             Room *r = room_find(s, c->room);
             if (!r || !c->is_op)
             {
                 send_msg(c, "not op in this room\r\n");
-                return;
+                return 0;
             }
             room_remove_op(r, args[1]);
             Client *target = find_client(s, c, args[1]);
             if (target)
             {
                 target->is_op = 0;
+                send_msg(target, "deopped %s\r\n", args[1]);
             }
             send_msg(c, "deopped %s\r\n", args[1]);
         }
@@ -293,7 +321,7 @@ void handle_line(Server *s, Client *c, const char *line)
             if (s->nrooms == 0)
             {
                 send_msg(c, "no rooms\r\n");
-                return;
+                return 0;
             }
             for (int i = 0; i < s->nrooms; i++)
             {
@@ -302,24 +330,23 @@ void handle_line(Server *s, Client *c, const char *line)
         }
         else if (strcmp(args[0], "who") == 0)
         {
-            int count = 0;
+            if (c->room[0] == 0)
+            {
+                send_msg(c, "join a room first\r\n");
+                return 0;
+            }
             for (int i = 0; i < s->nclients; i++)
             {
                 if (strcmp(s->clients[i].room, c->room) == 0)
                 {
                     send_msg(c, "%s%s\r\n", s->clients[i].nick, s->clients[i].is_op ? " (op)" : "");
-                    count++;
                 }
-            }
-            if (count == 0)
-            {
-                send_msg(c, "join a room first\r\n");
             }
         }
         else if (strcmp(args[0], "quit") == 0)
         {
             server_drop(s, c);
-            return;
+            return 1;
         }
         else if (strcmp(args[0], "motd") == 0)
         {
@@ -334,27 +361,28 @@ void handle_line(Server *s, Client *c, const char *line)
         {
             send_msg(c, "unknown command: /%s\r\n", args[0]);
         }
-        return;
+        return 0;
     }
 
     /* plain text, send to current room */
     if (c->room[0] == 0)
     {
         send_msg(c, "join a room first: /join <room>\r\n");
-        return;
+        return 0;
     }
 
     Room *r = room_find(s, c->room);
     if (!r)
     {
         send_msg(c, "not in a room\r\n");
-        return;
+        return 0;
     }
     if (room_is_banned(r, c->nick))
     {
         send_msg(c, "you are banned from this room\r\n");
-        return;
+        return 0;
     }
 
     broadcast_room(s, r, c, line);
+    return 0;
 }
